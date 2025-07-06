@@ -3,7 +3,7 @@ from flask import Flask, request, Response
 app = Flask(__name__)
 
 CONFIRMATION_TOKEN = "d897c6fe"  # токен подтверждения из VK
-SECRET = "секрет_из_ВК"          # подставь сюда свой секретный ключ (если используешь)
+SECRET = "a77ads8ed88aw80dz"          # подставь сюда свой секретный ключ (если используешь)
 GROUP_ID = 231458075             # ID твоей группы
 
 @app.route("/", methods=["POST"])

@@ -164,4 +164,8 @@ def callback():
         else:
             vk.messages.send(peer_id=peer_id, message="❌ Неизвестная команда или недостаточно прав", random_id=0)
 
+    if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
+
+
     return "ok"

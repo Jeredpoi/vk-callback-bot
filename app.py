@@ -39,7 +39,20 @@ def get_roles(user_id):
 
 # Проверка наличия роли
 def has_role(user_id, role):
-    return role in get_roles(user_id)
+    roles = get_roles(user_id)
+    if role in roles:
+        return True
+
+    # Если пользователь админ сообщества — дать ему все права
+    try:
+        admins = vk.groups.getMembers(group_id=GROUP_ID, filter="managers")["items"]
+        for admin in admins:
+            if admin["member_id"] == user_id and admin.get("role") in ["admin", "creator"]:
+                return True
+    except Exception as e:
+        print("Ошибка проверки прав администратора:", e)
+
+    return False
 
 # Установить ник
 def set_nick(user_id, nickname):

@@ -3,6 +3,8 @@ import json
 import vk_api
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import sqlite3
+import os  # <-- ЭТОТ ИМПОРТ ОБЯЗАТЕЛЕН
+
 
 app = Flask(__name__)
 

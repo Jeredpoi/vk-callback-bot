@@ -76,8 +76,21 @@ def callback():
         cmd = args[0].lower() if args else ""
 
         if cmd == "/help":
-            vk.messages.send(peer_id=peer_id, message="📘 Команды:
-/setnick, /nicklist, /giverole, /removerole, /help", random_id=0)
+            vk.messages.send(
+    peer_id=peer_id,
+    message=(
+        "Команды:\n"
+        "/setnick\n"
+        "/nicklist\n"
+        "/giverole\n"
+        "/removerole\n"
+        "/help"
+    ),
+    random_id=0
+)
+
+
+
 
         elif cmd == "/setnick" and len(args) >= 3:
             if has_role(user_id, "moderator") or has_role(user_id, "admin"):

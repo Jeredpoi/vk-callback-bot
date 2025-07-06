@@ -3,8 +3,9 @@ import json
 import vk_api
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import sqlite3
-import os  # <-- ЭТОТ ИМПОРТ ОБЯЗАТЕЛЕН
-
+import os
+from datetime import datetime, timedelta
+import time
 
 app = Flask(__name__)
 
@@ -21,29 +22,25 @@ vk_session = vk_api.VkApi(token=VK_TOKEN)
 vk = vk_session.get_api()
 
 DB_PATH = "users.db"
+START_TIME = time.time()
 
 # Подключение к базе
 def connect_db():
     return sqlite3.connect(DB_PATH)
 
-# Получить ссылку на пользователя
 def get_user_link(user_id):
     return f"https://vk.com/id{user_id}"
 
-# Получить список ролей пользователя
 def get_roles(user_id):
     with connect_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT role FROM roles WHERE user_id = ?", (str(user_id),))
         return [row[0] for row in cur.fetchall()]
 
-# Проверка наличия роли
 def has_role(user_id, role):
     roles = get_roles(user_id)
     if role in roles:
         return True
-
-    # Если пользователь админ сообщества — дать ему все права
     try:
         admins = vk.groups.getMembers(group_id=GROUP_ID, filter="managers")["items"]
         for admin in admins:
@@ -51,38 +48,36 @@ def has_role(user_id, role):
                 return True
     except Exception as e:
         print("Ошибка проверки прав администратора:", e)
-
     return False
 
-# Установить ник
 def set_nick(user_id, nickname):
     with connect_db() as conn:
         cur = conn.cursor()
         cur.execute("REPLACE INTO users (user_id, nickname) VALUES (?, ?)", (str(user_id), nickname))
         conn.commit()
 
-# Получить список всех ников
 def get_nicklist():
     with connect_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT user_id, nickname FROM users")
         return cur.fetchall()
 
-# Выдать роль
 def add_role(user_id, role):
     with connect_db() as conn:
         cur = conn.cursor()
         cur.execute("REPLACE INTO roles (user_id, role) VALUES (?, ?)", (str(user_id), role))
         conn.commit()
 
-# Удалить роль
 def remove_role(user_id):
     with connect_db() as conn:
         cur = conn.cursor()
         cur.execute("DELETE FROM roles WHERE user_id = ?", (str(user_id),))
         conn.commit()
 
-# Главная функция-обработчик
+def get_uptime():
+    uptime = time.time() - START_TIME
+    return str(timedelta(seconds=int(uptime)))
+
 @app.route("/", methods=["POST"])
 def callback():
     event = request.get_json()
@@ -98,22 +93,25 @@ def callback():
         args = text.strip().split()
         cmd = args[0].lower() if args else ""
 
-        # Команда /help
         if cmd == "/help":
             vk.messages.send(
                 peer_id=peer_id,
                 message=(
-                    "📘 Список команд:\n"
+                    "\U0001F4D8 Команды:\n"
                     "/setnick @user ник — установить ник\n"
-                    "/nicklist — список всех ников\n"
+                    "/nicklist — список ников\n"
                     "/giverole @user роль — выдать роль\n"
                     "/removerole @user — удалить роль\n"
+                    "/addmod @user — выдать модера\n"
+                    "/removemod @user — убрать модера\n"
+                    "/ping — проверка\n"
+                    "/time — время\n"
+                    "/uptime — аптайм\n"
                     "/help — помощь"
                 ),
                 random_id=0
             )
 
-        # Команда /setnick
         elif cmd == "/setnick" and len(args) >= 3:
             if has_role(user_id, "moderator") or has_role(user_id, "admin"):
                 target = args[1].replace("@", "").replace("[", "").replace("]", "")
@@ -123,29 +121,42 @@ def callback():
             else:
                 vk.messages.send(peer_id=peer_id, message="❌ Недостаточно прав", random_id=0)
 
-        # Команда /nicklist
         elif cmd == "/nicklist":
             entries = get_nicklist()
-            if entries:
-                text = "📋 Ники:\n" + "\n".join([f"{uid}: {nick}" for uid, nick in entries])
-            else:
-                text = "❌ Ники не найдены"
+            text = "📋 Ники:\n" + "\n".join([f"{uid}: {nick}" for uid, nick in entries]) if entries else "❌ Ники не найдены"
             vk.messages.send(peer_id=peer_id, message=text, random_id=0)
 
-        # Команда /giverole
         elif cmd == "/giverole" and len(args) >= 3 and has_role(user_id, "admin"):
             target = args[1].replace("@", "").replace("[", "").replace("]", "")
             role = args[2]
             add_role(target, role)
             vk.messages.send(peer_id=peer_id, message=f"✅ Роль {role} выдана", random_id=0)
 
-        # Команда /removerole
         elif cmd == "/removerole" and len(args) >= 2 and has_role(user_id, "admin"):
             target = args[1].replace("@", "").replace("[", "").replace("]", "")
             remove_role(target)
             vk.messages.send(peer_id=peer_id, message="✅ Роль удалена", random_id=0)
 
-        # Неизвестная команда
+        elif cmd == "/addmod" and len(args) >= 2 and has_role(user_id, "admin"):
+            target = args[1].replace("@", "").replace("[", "").replace("]", "")
+            add_role(target, "moderator")
+            vk.messages.send(peer_id=peer_id, message="✅ Назначен модератор", random_id=0)
+
+        elif cmd == "/removemod" and len(args) >= 2 and has_role(user_id, "admin"):
+            target = args[1].replace("@", "").replace("[", "").replace("]", "")
+            remove_role(target)
+            vk.messages.send(peer_id=peer_id, message="✅ Модератор снят", random_id=0)
+
+        elif cmd == "/ping":
+            vk.messages.send(peer_id=peer_id, message="🏓 Pong!", random_id=0)
+
+        elif cmd == "/time":
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            vk.messages.send(peer_id=peer_id, message=f"⏰ Время сервера: {now}", random_id=0)
+
+        elif cmd == "/uptime":
+            vk.messages.send(peer_id=peer_id, message=f"⏳ Аптайм: {get_uptime()}", random_id=0)
+
         else:
             vk.messages.send(peer_id=peer_id, message="❌ Неизвестная команда или недостаточно аргументов", random_id=0)
 
@@ -154,4 +165,3 @@ def callback():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-

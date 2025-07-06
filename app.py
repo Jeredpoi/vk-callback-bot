@@ -10,10 +10,10 @@ app = Flask(__name__)
 with open("config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
 
-CONFIRMATION_TOKEN = config["d897c6fe"]
-GROUP_ID = config["231458075"]
-SECRET = config["a77ads8ed88aw80dz"]
-VK_TOKEN = config["vk1.a.2uhfxqUXFUcpcoPfC9kwerOj25NuDCpHDe4gr5dgR-YnbakV-7fubzdTKFTBC-ZOFnzVdIH6XOFVy6L5LdDi1FYHMpAQd_S6Qd3E3IsTCFKWY14J7n_hOe1TOsABvGwYXf98kySj-EIun8pNtFycVzWmd468c8dXcDdUSSQaZVKc102jjfj2OTqkT1_lFWHNocOtnuFz1PB1tE-mudGVYg"]
+CONFIRMATION_TOKEN = config["confirmation_token"]
+GROUP_ID = config["group_id"]
+SECRET = config["secret"]
+VK_TOKEN = config["vk_token"]
 
 vk_session = vk_api.VkApi(token=VK_TOKEN)
 vk = vk_session.get_api()
@@ -135,4 +135,3 @@ def callback():
             vk.messages.send(peer_id=peer_id, message="❌ Неизвестная команда или недостаточно аргументов", random_id=0)
 
     return "ok"
-

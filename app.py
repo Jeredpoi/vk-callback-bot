@@ -104,7 +104,7 @@ def callback():
         elif cmd == "/nicklist":
             entries = get_nicklist()
             if entries:
-                text = "📋 Ники:
+                text = "📋 Ники":
 " + "
 ".join([f"{uid} → {nick}" for uid, nick in entries])
             else:

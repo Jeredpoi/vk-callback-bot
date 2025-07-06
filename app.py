@@ -88,6 +88,17 @@ def callback():
         args = text.strip().split()
         cmd = args[0].lower() if args else ""
 
+        payload = msg.get("payload")
+        if payload:
+            try:
+                data = json.loads(payload)
+                if data.get("command") == "unban" and has_role(user_id, "moderator"):
+                    target = data.get("target")
+                    vk.messages.send(peer_id=peer_id, message=f"✅ Пользователь {target} разбанен.", random_id=0)
+                    return "ok"
+            except Exception as e:
+                print("Ошибка при обработке payload:", e)
+
         if cmd == "/help":
             vk.messages.send(peer_id=peer_id, message=(
                 "\nКоманды:\n"
@@ -133,6 +144,16 @@ def callback():
 
         elif cmd == "/id":
             vk.messages.send(peer_id=peer_id, message=f"🔗 {get_user_link(user_id)}", random_id=0)
+
+        elif cmd == "/ban" and len(args) >= 2 and has_role(user_id, "moderator"):
+            target = args[1].replace("@", "").replace("[", "").replace("]", "")
+            keyboard = VkKeyboard(one_time=True)
+            keyboard.add_button("Разбанить", color=VkKeyboardColor.POSITIVE, payload=json.dumps({"command": "unban", "target": target}))
+            vk.messages.send(peer_id=peer_id, message=f"⛔ Пользователь {target} забанен.", random_id=0, keyboard=keyboard.get_keyboard())
+
+        elif cmd == "/unban" and len(args) >= 2 and has_role(user_id, "moderator"):
+            target = args[1].replace("@", "").replace("[", "").replace("]", "")
+            vk.messages.send(peer_id=peer_id, message=f"✅ Пользователь {target} разбанен.", random_id=0)
 
         elif cmd == "/ping":
             vk.messages.send(peer_id=peer_id, message="🏓 Pong!", random_id=0)

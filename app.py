@@ -5,11 +5,9 @@ from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import sqlite3
 import os
 from datetime import datetime, timedelta
-import time
 
 app = Flask(__name__)
 
-# Загрузка конфигурации
 with open("config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
 
@@ -22,9 +20,9 @@ vk_session = vk_api.VkApi(token=VK_TOKEN)
 vk = vk_session.get_api()
 
 DB_PATH = "users.db"
-START_TIME = time.time()
 
-# Подключение к базе
+start_time = datetime.now()
+
 def connect_db():
     return sqlite3.connect(DB_PATH)
 
@@ -37,24 +35,17 @@ def get_roles(user_id):
         cur.execute("SELECT role FROM roles WHERE user_id = ?", (str(user_id),))
         return [row[0] for row in cur.fetchall()]
 
-def has_role(user_id, role, peer_id=None):
-    roles = get_roles(user_id)
-    if role in roles:
+def has_role(user_id, role):
+    if is_group_admin(user_id):
         return True
+    return role in get_roles(user_id)
 
-    if role == "admin" and peer_id:
-        try:
-            members = vk.messages.getConversationMembers(peer_id=peer_id)["items"]
-            for member in members:
-                if member["member_id"] == user_id and (
-                    member.get("is_admin") or member.get("is_owner")
-                ):
-                    return True
-        except Exception as e:
-            print("Ошибка проверки прав администратора чата:", e)
-
-    return False
-
+def is_group_admin(user_id):
+    try:
+        members = vk.groups.getMembers(group_id=GROUP_ID, filter="managers")
+        return user_id in members["items"]
+    except:
+        return False
 
 def set_nick(user_id, nickname):
     with connect_db() as conn:
@@ -81,13 +72,11 @@ def remove_role(user_id):
         conn.commit()
 
 def get_uptime():
-    uptime = time.time() - START_TIME
-    return str(timedelta(seconds=int(uptime)))
+    return str(datetime.now() - start_time).split('.')[0]
 
 @app.route("/", methods=["POST"])
 def callback():
     event = request.get_json()
-
     if event["type"] == "confirmation":
         return CONFIRMATION_TOKEN
 
@@ -100,23 +89,22 @@ def callback():
         cmd = args[0].lower() if args else ""
 
         if cmd == "/help":
-            vk.messages.send(
-                peer_id=peer_id,
-                message=(
-                    "\U0001F4D8 Команды:\n"
-                    "/setnick @user ник — установить ник\n"
-                    "/nicklist — список ников\n"
-                    "/giverole @user роль — выдать роль\n"
-                    "/removerole @user — удалить роль\n"
-                    "/addmod @user — выдать модера\n"
-                    "/removemod @user — убрать модера\n"
-                    "/ping — проверка\n"
-                    "/time — время\n"
-                    "/uptime — аптайм\n"
-                    "/help — помощь"
-                ),
-                random_id=0
-            )
+            vk.messages.send(peer_id=peer_id, message=(
+                "\nКоманды:\n"
+                "/setnick @id Ник\n"
+                "/nicklist\n"
+                "/giverole @id роль\n"
+                "/removerole @id\n"
+                "/id\n"
+                "/ban @id\n"
+                "/unban @id\n"
+                "/mute @id\n"
+                "/unmute @id\n"
+                "/kick @id\n"
+                "/clear\n"
+                "/ping\n"
+                "/uptime\n"
+            ), random_id=0)
 
         elif cmd == "/setnick" and len(args) >= 3:
             if has_role(user_id, "moderator") or has_role(user_id, "admin"):
@@ -128,8 +116,8 @@ def callback():
                 vk.messages.send(peer_id=peer_id, message="❌ Недостаточно прав", random_id=0)
 
         elif cmd == "/nicklist":
-            entries = get_nicklist()
-            text = "📋 Ники:\n" + "\n".join([f"{uid}: {nick}" for uid, nick in entries]) if entries else "❌ Ники не найдены"
+            nicks = get_nicklist()
+            text = "\n".join([f"{uid} — {nick}" for uid, nick in nicks]) or "Список пуст"
             vk.messages.send(peer_id=peer_id, message=text, random_id=0)
 
         elif cmd == "/giverole" and len(args) >= 3 and has_role(user_id, "admin"):
@@ -143,31 +131,16 @@ def callback():
             remove_role(target)
             vk.messages.send(peer_id=peer_id, message="✅ Роль удалена", random_id=0)
 
-        elif cmd == "/addmod" and len(args) >= 2 and has_role(user_id, "admin"):
-            target = args[1].replace("@", "").replace("[", "").replace("]", "")
-            add_role(target, "moderator")
-            vk.messages.send(peer_id=peer_id, message="✅ Назначен модератор", random_id=0)
-
-        elif cmd == "/removemod" and len(args) >= 2 and has_role(user_id, "admin"):
-            target = args[1].replace("@", "").replace("[", "").replace("]", "")
-            remove_role(target)
-            vk.messages.send(peer_id=peer_id, message="✅ Модератор снят", random_id=0)
+        elif cmd == "/id":
+            vk.messages.send(peer_id=peer_id, message=f"🔗 {get_user_link(user_id)}", random_id=0)
 
         elif cmd == "/ping":
             vk.messages.send(peer_id=peer_id, message="🏓 Pong!", random_id=0)
 
-        elif cmd == "/time":
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            vk.messages.send(peer_id=peer_id, message=f"⏰ Время сервера: {now}", random_id=0)
-
         elif cmd == "/uptime":
-            vk.messages.send(peer_id=peer_id, message=f"⏳ Аптайм: {get_uptime()}", random_id=0)
+            vk.messages.send(peer_id=peer_id, message=f"⏱ Бот работает: {get_uptime()}", random_id=0)
 
         else:
-            vk.messages.send(peer_id=peer_id, message="❌ Неизвестная команда или недостаточно аргументов", random_id=0)
+            vk.messages.send(peer_id=peer_id, message="❌ Неизвестная команда или недостаточно прав", random_id=0)
 
     return "ok"
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)

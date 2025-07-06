@@ -36,9 +36,21 @@ def get_roles(user_id):
         return [row[0] for row in cur.fetchall()]
 
 def has_role(user_id, role):
-    if is_group_admin(user_id):
+    roles = get_roles(user_id)
+    if role in roles:
         return True
-    return role in get_roles(user_id)
+
+    try:
+        admins = vk.groups.getMembers(group_id=GROUP_ID, filter="managers")["items"]
+        for admin in admins:
+            if admin["member_id"] == user_id and admin.get("role") in ["admin", "creator"]:
+                print(f"✅ {user_id} — админ сообщества")
+                return True
+    except Exception as e:
+        print("Ошибка проверки прав администратора:", e)
+
+    return False
+
 
 def is_group_admin(user_id):
     try:

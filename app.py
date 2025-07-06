@@ -37,18 +37,24 @@ def get_roles(user_id):
         cur.execute("SELECT role FROM roles WHERE user_id = ?", (str(user_id),))
         return [row[0] for row in cur.fetchall()]
 
-def has_role(user_id, role):
+def has_role(user_id, role, peer_id=None):
     roles = get_roles(user_id)
     if role in roles:
         return True
-    try:
-        admins = vk.groups.getMembers(group_id=GROUP_ID, filter="managers")["items"]
-        for admin in admins:
-            if admin["member_id"] == user_id and admin.get("role") in ["admin", "creator"]:
-                return True
-    except Exception as e:
-        print("Ошибка проверки прав администратора:", e)
+
+    if role == "admin" and peer_id:
+        try:
+            members = vk.messages.getConversationMembers(peer_id=peer_id)["items"]
+            for member in members:
+                if member["member_id"] == user_id and (
+                    member.get("is_admin") or member.get("is_owner")
+                ):
+                    return True
+        except Exception as e:
+            print("Ошибка проверки прав администратора чата:", e)
+
     return False
+
 
 def set_nick(user_id, nickname):
     with connect_db() as conn:

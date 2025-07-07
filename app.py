@@ -175,7 +175,7 @@ def callback():
 
         else:
             vk.messages.send(peer_id=peer_id, message="❌ Неизвестная команда или недостаточно прав", random_id=0)
-
+ 
     if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 10000))  # Render передаёт порт через переменную PORT
